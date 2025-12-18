@@ -30,7 +30,7 @@ def search_genius_lyrics(song_query):
         if section['type'] == 'song':
             for hit in section['hits']:
                 lyrics_url = hit['result']['url']
-                song_title = hit['result']['full_title']
+                song_title = hit['result']['title']  # Changed from 'full_title' to 'title'
                 print(f"Found: {song_title}")
                 print(f"URL: {lyrics_url}")
                 break
@@ -85,29 +85,21 @@ def parse_lyrics_sections(lyrics_text):
     """
     Parse lyrics into sections based on brackets [Section Name].
     Returns list of tuples: (section_name, section_text)
+    Only includes sections that have bracket markers.
     """
     sections = []
     
     # Split by sections marked with [...]
     parts = re.split(r'\[([^\]]+)\]', lyrics_text)
     
-    current_section = None
-    
-    for i, part in enumerate(parts):
-        part = part.strip()
-        if not part:
-            continue
+    # Skip the first part if there's content before any section markers
+    for i in range(1, len(parts), 2):
+        if i < len(parts):
+            section_name = parts[i].strip()
+            section_text = parts[i + 1].strip() if i + 1 < len(parts) else ""
             
-        # Odd indices are section names (from the capturing group)
-        if i % 2 == 1:
-            current_section = part
-        # Even indices are the content following the section
-        else:
-            if current_section:
-                sections.append((current_section, part))
-                current_section = None
-            elif part:  # Content without a section header
-                sections.append(("", part))
+            if section_text:  # Only add if there's actual content
+                sections.append((section_name, section_text))
     
     return sections
 
@@ -176,26 +168,25 @@ def create_lyrics_presentation(song_title, sections, output_file="lyrics_present
         content_length = len(section_text)
         font_size = calculate_font_size(content_length)
         
-        # Add section name if it exists (at top)
-        if section_name:
-            left = Inches(0.5)
-            top = Inches(0.3)
-            width = Inches(9)
-            height = Inches(0.8)
-            
-            section_box = slide.shapes.add_textbox(left, top, width, height)
-            section_tf = section_box.text_frame
-            section_tf.text = f"[{section_name}]"
-            section_tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-            section_tf.paragraphs[0].font.size = Pt(24)
-            section_tf.paragraphs[0].font.bold = True
-            section_tf.paragraphs[0].font.color.rgb = RGBColor(100, 100, 150)
+        # Add section name (at top)
+        left = Inches(0.5)
+        top = Inches(0.3)
+        width = Inches(9)
+        height = Inches(0.8)
+        
+        section_box = slide.shapes.add_textbox(left, top, width, height)
+        section_tf = section_box.text_frame
+        section_tf.text = f"[{section_name}]"
+        section_tf.paragraphs[0].alignment = PP_ALIGN.CENTER
+        section_tf.paragraphs[0].font.size = Pt(24)
+        section_tf.paragraphs[0].font.bold = True
+        section_tf.paragraphs[0].font.color.rgb = RGBColor(100, 100, 150)
         
         # Add lyrics text (centered)
         left = Inches(0.5)
-        top = Inches(1.5) if section_name else Inches(1)
+        top = Inches(1.5)
         width = Inches(9)
-        height = Inches(5.5) if section_name else Inches(6)
+        height = Inches(5.5)
         
         text_box = slide.shapes.add_textbox(left, top, width, height)
         tf = text_box.text_frame

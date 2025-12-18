@@ -1,44 +1,50 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from urllib.parse import quote
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 
 def search_genius_lyrics(song_query):
-    """Search for a song on Genius and get the lyrics URL and content."""
+    """Search for a song on Genius using the API and get the lyrics URL and content."""
     
-    encoded_query = quote(song_query)
-    search_url = f"https://genius.com/search?q={encoded_query}"
+    # Use the Genius API endpoint
+    url = f"https://genius.com/api/search/multi?per_page=5&q={song_query.replace(' ', '%20')}"
     
-    print(f"Searching: {search_url}")
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
+    print(f"Searching: {url}")
     
     try:
-        response = requests.get(search_url, headers=headers)
+        response = requests.get(url)
         response.raise_for_status()
+        data = response.json()
     except requests.RequestException as e:
         print(f"Error fetching search results: {e}")
         return None
     
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
+    # Find the first song result
     lyrics_url = None
-    for link in soup.find_all('a', href=True):
-        href = link['href']
-        if href.startswith('https://genius.com/') and href.endswith('-lyrics'):
-            lyrics_url = href
-            print(f"Found lyrics URL: {lyrics_url}")
-            break
+    song_title = None
+    
+    for section in data['response']['sections']:
+        if section['type'] == 'song':
+            for hit in section['hits']:
+                lyrics_url = hit['result']['url']
+                song_title = hit['result']['full_title']
+                print(f"Found: {song_title}")
+                print(f"URL: {lyrics_url}")
+                break
+            if lyrics_url:
+                break
     
     if not lyrics_url:
         print("No lyrics URL found in search results")
         return None
+    
+    # Now fetch the lyrics from the URL
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
     
     try:
         lyrics_response = requests.get(lyrics_url, headers=headers)
@@ -49,9 +55,7 @@ def search_genius_lyrics(song_query):
     
     lyrics_soup = BeautifulSoup(lyrics_response.text, 'html.parser')
     
-    title_tag = lyrics_soup.find('title')
-    title = title_tag.text.replace(' | Genius Lyrics', '') if title_tag else "Unknown"
-    
+    # Find lyrics containers
     lyrics_containers = lyrics_soup.find_all('div', attrs={'data-lyrics-container': 'true'})
     
     if not lyrics_containers:
@@ -59,7 +63,7 @@ def search_genius_lyrics(song_query):
     
     if not lyrics_containers:
         print("Could not find lyrics in the page")
-        return {'url': lyrics_url, 'title': title, 'lyrics': None}
+        return {'url': lyrics_url, 'title': song_title, 'lyrics': None}
     
     lyrics_text = []
     for container in lyrics_containers:
@@ -72,7 +76,7 @@ def search_genius_lyrics(song_query):
     
     return {
         'url': lyrics_url,
-        'title': title,
+        'title': song_title,
         'lyrics': lyrics
     }
 
